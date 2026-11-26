@@ -54,6 +54,9 @@ from backend.pdf_report import generate_pdf_report
 # Global lifespan context manager for one-time model initialization
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from src.seed import seed_everything
+    seed_everything(42)
+
     print(f"\n[Lifespan Startup] Initializing Deepfake Detection System...")
     print(f"  Backend: {MODEL_BACKEND}")
     print(f"  Model ID: {MODEL_ID}")

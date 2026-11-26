@@ -19,18 +19,17 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 
+from src.seed import seed_everything
+from src.class_config import CLASS_TO_IDX, IDX_TO_LABEL
+
 
 def set_seed(seed=42):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+    return seed_everything(seed)
 
 
 class RealFakeDataset(Dataset):
-    """Custom dataset mapping 'real' -> 0 and 'fake' -> 1 to match dima806 config."""
-    CLASS_MAP = {'real': 0, 'fake': 1}
+    """Custom dataset mapping 'real' -> 0 and 'fake' -> 1 to match model config."""
+    CLASS_MAP = CLASS_TO_IDX
 
     def __init__(self, root_dir, transform=None):
         self.root_dir = root_dir

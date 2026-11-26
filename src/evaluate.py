@@ -27,6 +27,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 
 from src.class_config import CLASS_TO_IDX, IDX_TO_LABEL
 from src.vit_transforms import get_vit_transform
+from src.seed import seed_everything
 
 
 class RealFakeDataset(Dataset):
@@ -90,7 +91,10 @@ def main():
     parser.add_argument('--model_path', type=str, default=None, help="Path to model directory or Hugging Face model ID")
     parser.add_argument('--output_dir', type=str, default='outputs', help="Directory to save errors.csv and metrics")
     parser.add_argument('--batch_size', type=int, default=32, help="Batch size for evaluation")
+    parser.add_argument('--seed', type=int, default=42, help="Random seed for deterministic evaluation")
     args = parser.parse_args()
+
+    seed_everything(args.seed)
 
     # Hardware detection
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -108,6 +112,7 @@ def main():
         model_source = args.model_path
     else:
         candidates = [
+            os.path.join(os.getcwd(), 'models', 'best_model_vit'),
             os.path.join(os.getcwd(), 'models', 'pretrained_vit'),
             os.path.join(os.getcwd(), 'models', 'best_model'),
             os.path.join(os.getcwd(), 'models'),
