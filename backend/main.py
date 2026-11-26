@@ -63,6 +63,9 @@ def _init_model() -> BaseDeepfakeModel:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from src.seed import seed_everything
+    seed_everything(42)
+
     print(f"[Startup] Backend={MODEL_BACKEND} | Model={MODEL_ID} | Device={DEVICE}")
     init_db()
     app.state.mtcnn = _init_mtcnn()

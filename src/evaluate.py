@@ -22,6 +22,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 
 from src.class_config import IDX_TO_LABEL, resolve_fake_label_id
 from src.vit_transforms import get_vit_transform
+from src.seed import seed_everything
 from src.vit_utils import RealFakeDataset, resolve_vit_model_source, plot_confusion_matrix
 
 
@@ -32,8 +33,10 @@ def main():
     parser.add_argument('--model_path', type=str, default=None, help="Path to model directory or Hugging Face model ID")
     parser.add_argument('--output_dir', type=str, default='outputs', help="Directory to save errors.csv and metrics")
     parser.add_argument('--batch_size', type=int, default=32, help="Batch size for evaluation")
+    parser.add_argument('--seed', type=int, default=42, help="Random seed for deterministic evaluation")
     args = parser.parse_args()
 
+    seed_everything(args.seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"[Device] Using compute hardware: {device.type.upper()}")
 

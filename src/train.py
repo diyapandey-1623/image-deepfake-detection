@@ -20,16 +20,13 @@ from torchvision import transforms
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 
 from src.class_config import LABEL_TO_IDX, IDX_TO_LABEL
+from src.seed import seed_everything
 from src.vit_transforms import get_vit_transform
 from src.vit_utils import RealFakeDataset, resolve_vit_model_source
 
 
 def set_seed(seed=42):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+    return seed_everything(seed)
 
 
 def get_transforms():
