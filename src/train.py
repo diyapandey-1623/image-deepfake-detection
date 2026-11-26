@@ -4,6 +4,7 @@ Model: dima806/deepfake_vs_real_image_detection (ViTForImageClassification)
 
 import os
 import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import time
 import argparse
 import random
@@ -11,68 +12,31 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from PIL import Image
 
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 from torchvision import transforms
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 
+from src.class_config import LABEL_TO_IDX, IDX_TO_LABEL
 from src.seed import seed_everything
-from src.class_config import CLASS_TO_IDX, IDX_TO_LABEL
+from src.vit_transforms import get_vit_transform
+from src.vit_utils import RealFakeDataset, resolve_vit_model_source
 
 
 def set_seed(seed=42):
     return seed_everything(seed)
 
 
-class RealFakeDataset(Dataset):
-    """Custom dataset mapping 'real' -> 0 and 'fake' -> 1 to match model config."""
-    CLASS_MAP = CLASS_TO_IDX
-
-    def __init__(self, root_dir, transform=None):
-        self.root_dir = root_dir
-        self.transform = transform
-        self.samples = []
-
-        for class_name, label in self.CLASS_MAP.items():
-            class_folder = os.path.join(root_dir, class_name)
-            if not os.path.exists(class_folder):
-                continue
-            for fname in sorted(os.listdir(class_folder)):
-                if fname.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
-                    self.samples.append((os.path.join(class_folder, fname), label))
-
-        if len(self.samples) == 0:
-            raise RuntimeError(f"No valid images found in {root_dir}")
-
-    def __len__(self):
-        return len(self.samples)
-
-    def __getitem__(self, idx):
-        path, label = self.samples[idx]
-        image = Image.open(path).convert('RGB')
-        if self.transform:
-            image = self.transform(image)
-        return image, label
-
-
 def get_transforms():
-    # ViT expects 224x224, normalized to [-1, 1] with mean=0.5, std=0.5
     train_transform = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BILINEAR),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
     ])
-
-    eval_transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-    ])
-    return train_transform, eval_transform
+    return train_transform, get_vit_transform()
 
 
 def train_one_epoch(model, loader, optimizer, criterion, device):
@@ -158,7 +122,7 @@ def plot_metrics(history, output_dir):
 
 def main():
     parser = argparse.ArgumentParser(description="Fine-tune ViT model for Real vs Fake image detection.")
-    parser.add_argument('--data_dir', type=str, default='data_small', help="Path to data directory containing train/ and valid/")
+    parser.add_argument('--data_dir', type=str, default='data/small', help="Path to data directory containing train/ and valid/")
     parser.add_argument('--output_dir', type=str, default='output', help="Directory to save checkpoints and plots")
     parser.add_argument('--model_id', type=str, default='dima806/deepfake_vs_real_image_detection', help="Hugging Face model ID or local directory")
     parser.add_argument('--epochs', type=int, default=1, help="Number of training epochs")
@@ -193,18 +157,15 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
-    # Check local pretrained_model folder fallback first
-    local_pretrained = os.path.join(os.getcwd(), 'pretrained_model')
-    model_source = local_pretrained if (os.path.exists(local_pretrained) and os.path.exists(os.path.join(local_pretrained, 'model.safetensors'))) else args.model_id
+    model_source = resolve_vit_model_source(args.model_id)
 
     print(f"[Model] Loading ViT model from: {model_source}")
     processor = AutoImageProcessor.from_pretrained(model_source)
     model = AutoModelForImageClassification.from_pretrained(model_source)
     model.to(device)
 
-    # Ensure label mapping is consistent
-    model.config.id2label = {0: "Real", 1: "Fake"}
-    model.config.label2id = {"Real": 0, "Fake": 1}
+    model.config.id2label = IDX_TO_LABEL
+    model.config.label2id = LABEL_TO_IDX
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     criterion = nn.CrossEntropyLoss()

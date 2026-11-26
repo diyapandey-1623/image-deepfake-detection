@@ -1,6 +1,6 @@
 import React from 'react'
 import { Trash2, ArrowRight, Check } from 'lucide-react'
-import { formatBytes } from '../lib/verdict'
+import { formatBytes } from '../lib/format'
 
 export default function ImagePreview({ file, previewUrl, onAnalyze, onRemove, disabled = false }) {
   if (!file || !previewUrl) return null

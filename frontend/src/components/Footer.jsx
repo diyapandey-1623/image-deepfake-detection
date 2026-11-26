@@ -35,9 +35,9 @@ export default function Footer() {
             <Link to="/history" className="text-white hover:text-[#C8FF00] transition-colors">
               03 HISTORY
             </Link>
-            <a href="#limits" className="text-white hover:text-[#C8FF00] transition-colors">
+            <Link to="/#limits" className="text-white hover:text-[#C8FF00] transition-colors">
               04 ABOUT
-            </a>
+            </Link>
           </div>
 
         </div>

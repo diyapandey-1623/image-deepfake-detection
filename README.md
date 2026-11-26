@@ -1,185 +1,161 @@
 # FakeLens: Deepfake Detection & Facial Forensics System
 
-An end-to-end, multimodal deepfake detection application featuring Vision Transformer (ViT) backbones, MTCNN facial landmark alignment, spatial & frequency forensic analysis, Grad-CAM explainability with anatomical regional influence analysis (Red, Yellow, Blue), an automated SQLite audit log, downloadable PDF forensic reports, and a modern editorial React + Tailwind web interface.
+An end-to-end deepfake detection application featuring a fine-tuned Vision Transformer (`vishvjeet1623/image-deepfake-detection`), MTCNN facial localization, EXIF orientation normalization, Grad-CAM explainability with 5-region anatomical influence analysis (Red, Yellow, Blue), Error Level Analysis (ELA), metadata inspection, an automated SQLite audit log, downloadable PDF forensic reports, and a React + Tailwind CSS web interface.
 
 ---
 
 ## 1. Project Overview & Features
 
-- **Model-Agnostic Deep Learning:** Built on Google's Vision Transformer (`google/vit-base-patch16-224` / `dima806/deepfake_vs_real_image_detection`) with runtime fallback to custom PyTorch architectures (`EfficientNet-B0`, `ResNet-18`).
-- **Facial Landmark Cropping:** Automated face localization and standardized $+20\%$ boundary margin cropping using MTCNN (`facenet-pytorch`).
-- **Explainable AI (Grad-CAM):** Native ViT activation mapping with spatial tensor reshaping (`14x14` token grid), projecting attention heatmaps directly over facial geometry.
-- **Regional Anatomical Breakdown:** Evaluates activation across 5 core facial regions:
-  - 🟥 **High Influence (Red, $\ge 50\%$):** Focal generative boundary anomalies or primary manipulation features.
-  - 🟨 **Moderate Influence (Yellow, $25\% - 50\%$):** Secondary facial contextual structures.
-  - 🟦 **Low Influence (Blue, $< 25\%$):** Normal organic skin baseline & background.
-- **Forensic Integrity Verifications:**
+- **Fine-Tuned Vision Transformer:** Defaults to [`vishvjeet1623/image-deepfake-detection`](https://huggingface.co/vishvjeet1623/image-deepfake-detection) on Hugging Face Hub (automatically downloaded and cached on first run), with optional local checkpoint loading (`models/best_model_vit/`) or custom PyTorch CNN fallback (`efficientnet_b0`, `resnet18`).
+- **Facial Localization & Preprocessing:** Applies EXIF orientation correction (`ImageOps.exif_transpose`), normalizes oversized uploads (`> 1024px`), and crops detected faces with a `+20%` boundary margin using MTCNN (`facenet-pytorch`).
+- **Explainable AI (Grad-CAM):** Targets the manipulation class on ViT (`14x14` token grid reshape) or CNN layers to project attention heatmaps over facial geometry.
+- **Regional Anatomical Breakdown:** Evaluates mean activation across 5 facial regions:
+  - **High Influence (Red, $\ge 50\%$):** Focal generative boundary anomalies or primary manipulation features.
+  - **Moderate Influence (Yellow, $25\% - 50\%$):** Secondary facial contextual structures.
+  - **Low Influence (Blue, $< 25\%$):** Baseline organic skin & background.
+- **Forensic Integrity Checks (on untouched original bytes):**
   - **Error Level Analysis (ELA):** Detects localized JPEG re-quantization inconsistencies.
-  - **Metadata / EXIF Audit:** Scans for software manipulation tags (Photoshop, Stable Diffusion, DALL-E, etc.).
-- **Forensic PDF Export:** Professional evidence-backed PDF report downloadable for any scan via ReportLab.
+  - **Metadata / EXIF Audit:** Scans image headers and EXIF tags for editing software or AI generator markers.
+- **Audit Log & PDF Export:** Persists scan history in SQLite (`data/scans.db`) and generates downloadable PDF forensic reports via ReportLab.
 
 ---
 
 ## 2. Directory Structure
 
 ```text
-deepfake-detector/
-├── data/                     # Dataset storage (gitignored, kept via .gitkeep)
-│   ├── raw/                  # Full 140,000 Kaggle dataset
-│   ├── small/                # Balanced evaluation set (train: 700, valid: 150, test: 150)
-│   └── sample_1000/          # 1,000-image balanced test set (500 Real, 500 Fake)
-├── models/                   # Model weight checkpoints (gitignored, kept via .gitkeep)
-│   ├── best_model_vit/       # Fine-tuned Vision Transformer checkpoint
-│   ├── pretrained_vit/       # Base pretrained ViT weights
-│   └── model.pth             # PyTorch CNN weights (EfficientNet-B0)
-├── src/                      # ML pipeline source code
-│   ├── train.py              # Fine-tuning script for Vision Transformers
-│   ├── evaluate.py           # Benchmark script with confusion matrix & error logs
-│   ├── predict.py            # CLI prediction tool
-│   ├── preprocessing/        # MTCNN face alignment & margin cropping
-│   ├── features/             # Spatial, frequency (FFT), and ELA forensic extractors
-│   └── models/               # PyTorch model definitions & wrappers
+image-deepfake-detection/
 ├── backend/                  # FastAPI REST API
-│   ├── main.py               # API application & lifespan model caching
-│   ├── config.py             # Centralized configuration & environment loader
-│   ├── database.py           # SQLite database persistence (scan_history)
+│   ├── main.py               # API endpoints, lifespan caching, EXIF/MTCNN pipeline
+│   ├── config.py             # Centralized configuration & environment overrides
+│   ├── database.py           # SQLite persistence (data/scans.db)
 │   ├── pdf_report.py         # Forensic PDF report generator (ReportLab)
 │   ├── schemas.py            # Pydantic response models
 │   └── model/
-│       ├── inference.py      # Unified model loader, ViT Grad-CAM & region analyzer
-│       └── checks.py         # MTCNN, ELA, and metadata forensic modules
+│       ├── inference.py      # HuggingFaceModel & CustomPyTorchModel + Grad-CAM
+│       ├── checks.py         # MTCNN face cropping, ELA, and EXIF metadata audit
+│       └── samples.py        # Synthetic sample portrait generator
 ├── frontend/                 # React + Vite + Tailwind CSS Web Application
 │   ├── src/
-│   │   ├── components/       # UI components (ImageCompare, ReasonsList, DemoUpload, etc.)
+│   │   ├── components/       # UI components (DemoUpload, ImageCompare, VerdictCard, etc.)
 │   │   ├── pages/            # App pages (Overview, Home/Detect, Result, History)
-│   │   └── lib/              # API client & verdict formatting utilities
-│   ├── package.json          # Node dependencies
-│   └── vite.config.js        # Vite build & backend proxy configuration
-├── configs/                  # Hyperparameter configuration files
-├── outputs/                  # Evaluation metrics, prediction CSVs, and plots
-├── tests/                    # Automated integration & unit tests
+│   │   └── lib/              # API client, verdict formatting, and class config
+│   ├── package.json
+│   └── vite.config.js
+├── src/                      # ML training, evaluation & CLI scripts
+│   ├── class_config.py       # Shared class mappings, binary threshold, rationale builder
+│   ├── vit_transforms.py     # Shared 224x224 ViT preprocessing
+│   ├── vit_utils.py          # Shared dataset, model resolution, and confusion matrix utils
+│   ├── train.py              # ViT fine-tuning script
+│   ├── train_balanced.py     # Balanced ViT fine-tuning with JPEG augmentation
+│   ├── evaluate.py           # Batch test-set evaluation script
+│   └── predict.py            # Single-image CLI prediction tool
+├── tests/                    # Unit, integration, and web benchmark tests
+├── start.bat                 # Windows one-click launcher (opens backend & frontend log windows)
 ├── .env.example              # Environment variables template
-├── .gitignore                # Production ignore rules (datasets, weights, node_modules)
 └── requirements.txt          # Python dependencies
 ```
 
 ---
 
-## 3. Dataset Download (Kaggle)
-
-This project is trained and evaluated on the **140k Real and Fake Faces** dataset:
-
-- **Kaggle Dataset Link:** [https://www.kaggle.com/datasets/xhlulu/140k-real-and-fake-faces](https://www.kaggle.com/datasets/xhlulu/140k-real-and-fake-faces)
-
-### How to set up the data:
-1. Download the dataset zip from Kaggle using the link above or the Kaggle CLI:
-   ```bash
-   kaggle datasets download -d xhlulu/140k-real-and-fake-faces
-   ```
-2. Extract the archive into the `data/` directory so the folder structure is:
-   ```text
-   data/
-   ├── real_vs_fake/
-   │   ├── train/
-   │   │   ├── real/
-   │   │   └── fake/
-   │   ├── valid/
-   │   │   ├── real/
-   │   │   └── fake/
-   │   └── test/
-   │       ├── real/
-   │       └── fake/
-   ```
-
----
-
-## 4. Models: Where to Get or Train
-
-### Option A: Use Pretrained Vision Transformer (Recommended)
-By default, the backend automatically downloads and caches the pretrained Vision Transformer model from the Hugging Face Hub:
-- **Hugging Face Model:** [`dima806/deepfake_vs_real_image_detection`](https://huggingface.co/dima806/deepfake_vs_real_image_detection)
-- **Architecture:** `google/vit-base-patch16-224` fine-tuned for Real vs. Fake face binary classification.
-
-### Option B: Fine-Tune Locally
-To fine-tune your own ViT checkpoint on your local dataset:
-```bash
-python src/train.py --data_dir data/small --output_dir models/best_model_vit --epochs 5 --batch_size 16 --lr 2e-5
-```
-
----
-
-## 5. Setup & Installation
+## 3. Setup & Installation
 
 ### Prerequisites
-- Python 3.10, 3.11, 3.12, or 3.13
-- Node.js 18+ and npm
+- **Python 3.10 – 3.13** (tested on **Python 3.11**; PyTorch/MTCNN wheels do not yet support Python 3.14)
+- **Node.js 18+** and **npm**
 
-### 1. Install Backend Dependencies
+### 1. Clone the Repository
 ```bash
-# Clone the repository
 git clone https://github.com/diyapandey-1623/image-deepfake-detection.git
 cd image-deepfake-detection
+```
 
-# Install Python requirements
+### 2. Create Virtual Environment & Install Python Dependencies
+**Windows (PowerShell):**
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+**macOS / Linux:**
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 2. Install Frontend Dependencies
+### 3. Install Frontend Dependencies
 ```bash
 cd frontend
 npm install
 cd ..
 ```
 
-### 3. Configure Environment Variables
+### 4. Configure Environment Variables
 Copy `.env.example` to `.env`:
+```powershell
+# Windows (PowerShell)
+Copy-Item .env.example .env
+```
 ```bash
+# macOS / Linux
 cp .env.example .env
 ```
+By default, `.env` sets `MODEL_BACKEND=huggingface` and `MODEL_ID=vishvjeet1623/image-deepfake-detection`, which automatically downloads and caches the fine-tuned model on first startup.
 
 ---
 
-## 6. How to Run the Application
+## 4. How to Run the Application
 
-### 1. Start the FastAPI Backend Server
-```bash
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+### Option A: One-Click Launch on Windows (`start.bat`)
+Double-click `start.bat` (or run `.\start.bat` from PowerShell). It opens two separate terminal windows so you can monitor live backend and frontend logs:
+- **Web Interface:** [http://127.0.0.1:5173](http://127.0.0.1:5173)
+- **Backend API & Swagger Docs:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+### Option B: Run Manually in Two Terminals
+
+**Terminal 1 — FastAPI Backend:**
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
-- **Backend API:** [http://127.0.0.1:8000](http://127.0.0.1:8000)
-- **Interactive Swagger Docs:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- **Health Check:** [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+- **Health Check:** [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
 
-### 2. Start the React Frontend Development Server
-```bash
+**Terminal 2 — React Frontend:**
+```powershell
 cd frontend
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
-- **Web Interface:** [http://localhost:5173](http://localhost:5173)
+- **Web Interface:** [http://127.0.0.1:5173](http://127.0.0.1:5173)
 
 ---
 
-## 7. Model Evaluation & CLI Tools
+## 5. Testing, Benchmarking & CLI Tools
+
+### Run Automated Tests
+```powershell
+.\.venv\Scripts\python.exe -m pytest -v
+```
+
+### Run Web Benchmark (10 Real & Deepfake Web Portraits)
+```powershell
+.\.venv\Scripts\python.exe tests\benchmark_web_images.py
+```
 
 ### Single-Image CLI Prediction
-```bash
-python src/predict.py path/to/face_photo.jpg
+```powershell
+.\.venv\Scripts\python.exe src\predict.py path\to\face_photo.jpg
 ```
 
-### Evaluate on Test Dataset
-```bash
-python src/evaluate.py --test_dir data/small/test --output_dir outputs
-```
-
-### Evaluate on 1,000 Balanced Samples
-```bash
-python src/test_sample_1000.py
+### Fine-Tune on Your Own Dataset (Optional)
+Download the [140k Real and Fake Faces](https://www.kaggle.com/datasets/xhlulu/140k-real-and-fake-faces) dataset into `data/real_vs_fake/` (with `train/`, `valid/`, `test/` containing `real/` and `fake/`), then run:
+```powershell
+.\.venv\Scripts\python.exe src\train.py --data_dir data\real_vs_fake --output_dir models\best_model_vit --epochs 5 --batch_size 16 --lr 2e-5
 ```
 
 ---
 
-## 8. Limitations & Accuracy Notes
+## 6. Model Performance & Limitations
 
-1. **Accuracy Range:** The Vision Transformer achieves **~88% – 93% accuracy** on standard in-distribution benchmark portrait datasets (StyleGAN2, StyleGAN3, ProGAN).
-2. **Social Media Compression:** Heavy lossy compression (such as re-saved WhatsApp or Twitter JPEGs at $Q < 50$) degrades subtle high-frequency spatial clues and can lower classifier confidence into the borderline region.
-3. **Out-of-Distribution Synthesis:** Novel generative pipelines (e.g. Midjourney v6, Flux.1, or heavily post-processed composite renders) may exhibit different generative signatures from the training set.
-4. **Forensic Best Practice:** Predictions are calibrated probabilities ($P_{\text{fake}} \in [0.0, 1.0]$) and should be corroborated with Error Level Analysis (ELA) and cryptographic metadata before journalistic or legal attribution.
+- **Benchmark Accuracy:** The fine-tuned [`vishvjeet1623/image-deepfake-detection`](https://huggingface.co/vishvjeet1623/image-deepfake-detection) checkpoint achieves **93.50% accuracy** (`91.0%` Real Recall, `96.0%` Fake Recall, `93.66%` Fake F1) on the 200-image web evaluation set (`tests/web_eval_200/`) and **100% (10/10)** on `tests/web_benchmark/`.
+- **Operational Limitations:** Heavy lossy recompression, extreme lighting, or unseen generative architectures can reduce confidence. Predictions are probabilistic (`P_fake ∈ [0.0, 1.0]`, threshold `0.50`) and should be corroborated with ELA and metadata checks before formal attribution.

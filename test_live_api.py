@@ -1,30 +1,26 @@
+"""Manual smoke-test script for a running FastAPI backend at http://127.0.0.1:8000."""
+
 import os
+from pathlib import Path
 import requests
 
-test_dir = r"c:\deepfake detection model\deepfake-detector\data\small\test"
-real_files = sorted(os.listdir(os.path.join(test_dir, "real")))[:10]
-fake_files = sorted(os.listdir(os.path.join(test_dir, "fake")))[:10]
 
-url = "http://127.0.0.1:8000/api/analyze"
+def main() -> None:
+    project_root = Path(__file__).resolve().parent
+    test_dir = project_root / "data" / "small" / "test"
+    url = os.getenv("API_URL", "http://127.0.0.1:8000") + "/api/analyze"
 
-print("--- Testing 10 REAL Images ---")
-for f in real_files:
-    p = os.path.join(test_dir, "real", f)
-    with open(p, "rb") as fp:
-        r = requests.post(url, files={"file": (f, fp, "image/jpeg")})
-    d = r.json()
-    v = d.get("verdict")
-    prob = d.get("fake_probability")
-    correct = "CORRECT" if v == "real" else "WRONG"
-    print(f"REAL | {f} | Pred: {v} | FakeProb: {prob:.4f} | {correct}")
+    for label in ("real", "fake"):
+        files = sorted((test_dir / label).iterdir())[:3]
+        for fpath in files:
+            with open(fpath, "rb") as f:
+                res = requests.post(url, files={"file": (fpath.name, f, "image/jpeg")}, timeout=30)
+            data = res.json()
+            print(
+                f"[{label.upper():4}] {fpath.name}: verdict={data.get('verdict')} "
+                f"| fake_prob={data.get('fake_probability'):.4f} | regions={len(data.get('regional_influence', []))}"
+            )
 
-print("\n--- Testing 10 FAKE Images ---")
-for f in fake_files:
-    p = os.path.join(test_dir, "fake", f)
-    with open(p, "rb") as fp:
-        r = requests.post(url, files={"file": (f, fp, "image/jpeg")})
-    d = r.json()
-    v = d.get("verdict")
-    prob = d.get("fake_probability")
-    correct = "CORRECT" if v == "fake" else "WRONG"
-    print(f"FAKE | {f} | Pred: {v} | FakeProb: {prob:.4f} | {correct}")
+
+if __name__ == "__main__":
+    main()

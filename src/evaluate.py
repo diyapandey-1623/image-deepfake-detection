@@ -14,79 +14,21 @@ import argparse
 import json
 import csv
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from PIL import Image
 
 import torch
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
-from transformers import AutoImageProcessor, AutoModelForImageClassification
+from torch.utils.data import DataLoader
+from transformers import AutoModelForImageClassification
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
 
-from src.class_config import CLASS_TO_IDX, IDX_TO_LABEL
+from src.class_config import IDX_TO_LABEL, resolve_fake_label_id
 from src.vit_transforms import get_vit_transform
 from src.seed import seed_everything
-
-
-class RealFakeDataset(Dataset):
-    """Custom dataset using shared class mapping: 'real' -> 0, 'fake' -> 1."""
-    CLASS_MAP = CLASS_TO_IDX
-    INDEX_TO_NAME = {0: 'real', 1: 'fake'}
-
-    def __init__(self, root_dir, transform=None):
-        self.root_dir = root_dir
-        self.transform = transform
-        self.samples = []
-
-        for class_name, label in self.CLASS_MAP.items():
-            class_folder = os.path.join(root_dir, class_name)
-            if not os.path.exists(class_folder):
-                continue
-            for fname in sorted(os.listdir(class_folder)):
-                if fname.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
-                    self.samples.append((os.path.join(class_folder, fname), label, fname))
-
-        if len(self.samples) == 0:
-            raise RuntimeError(f"No valid images found in {root_dir}")
-
-    def __len__(self):
-        return len(self.samples)
-
-    def __getitem__(self, idx):
-        path, label, fname = self.samples[idx]
-        image = Image.open(path).convert('RGB')
-        if self.transform:
-            image = self.transform(image)
-        return image, label, path, fname
-
-
-def plot_confusion_matrix(cm, class_names, output_path):
-    fig, ax = plt.subplots(figsize=(6, 5))
-    cax = ax.matshow(cm, cmap=plt.cm.Blues, alpha=0.8)
-
-    for i in range(cm.shape[0]):
-        for j in range(cm.shape[1]):
-            ax.text(x=j, y=i, s=str(cm[i, j]), va='center', ha='center', size='xx-large', weight='bold')
-
-    fig.colorbar(cax)
-    ax.set_xticks(range(len(class_names)))
-    ax.set_yticks(range(len(class_names)))
-    ax.set_xticklabels(class_names, fontsize=12)
-    ax.set_yticklabels(class_names, fontsize=12)
-    plt.xlabel('Predicted Label', fontsize=12, labelpad=10)
-    plt.ylabel('True Label', fontsize=12, labelpad=10)
-    plt.title('Confusion Matrix (data_small/test)', fontsize=14, fontweight='bold', pad=15)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=200)
-    plt.close()
-    print(f"Confusion matrix plot saved to: {output_path}")
+from src.vit_utils import RealFakeDataset, resolve_vit_model_source, plot_confusion_matrix
 
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate deepfake detection model on data/small/test or sample_1000.")
-    default_test = 'data/small/test' if os.path.exists('data/small/test') else ('data/sample_1000' if os.path.exists('data/sample_1000') else 'data_small/test')
+    default_test = 'data/small/test' if os.path.exists('data/small/test') else 'data/sample_1000'
     parser.add_argument('--test_dir', type=str, default=default_test, help="Path to test set containing real/ and fake/")
     parser.add_argument('--model_path', type=str, default=None, help="Path to model directory or Hugging Face model ID")
     parser.add_argument('--output_dir', type=str, default='outputs', help="Directory to save errors.csv and metrics")
@@ -95,41 +37,21 @@ def main():
     args = parser.parse_args()
 
     seed_everything(args.seed)
-
-    # Hardware detection
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"[Device] Using compute hardware: {device.type.upper()}")
 
-    # ViT 224x224 normalization via shared transform
-    eval_transform = get_vit_transform()
-
-    test_dataset = RealFakeDataset(args.test_dir, transform=eval_transform)
+    test_dataset = RealFakeDataset(args.test_dir, transform=get_vit_transform(), return_meta=True)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
     print(f"[Data] Loaded {len(test_dataset)} test images ({sum(1 for _, l, _ in test_dataset.samples if l == 0)} real, {sum(1 for _, l, _ in test_dataset.samples if l == 1)} fake)")
 
-    # Model resolution
-    if args.model_path:
-        model_source = args.model_path
-    else:
-        candidates = [
-            os.path.join(os.getcwd(), 'models', 'best_model_vit'),
-            os.path.join(os.getcwd(), 'models', 'pretrained_vit'),
-            os.path.join(os.getcwd(), 'models', 'best_model'),
-            os.path.join(os.getcwd(), 'models'),
-            os.path.join(os.getcwd(), 'pretrained_model')
-        ]
-        model_source = None
-        for cand in candidates:
-            if os.path.exists(cand) and os.path.exists(os.path.join(cand, 'model.safetensors')):
-                model_source = cand
-                break
-        if model_source is None:
-            model_source = 'dima806/deepfake_vs_real_image_detection'
+    model_source = resolve_vit_model_source(args.model_path)
 
     print(f"[Model] Loading model from: {model_source}")
     model = AutoModelForImageClassification.from_pretrained(model_source)
     model.to(device)
     model.eval()
+    fake_idx = resolve_fake_label_id(getattr(model.config, "id2label", None))
+    real_idx = 1 - fake_idx
 
     all_preds = []
     all_targets = []
@@ -143,11 +65,11 @@ def main():
             images = images.to(device)
             logits = model(images).logits
             probs = torch.softmax(logits, dim=1)
-            _, preds = torch.max(logits, 1)
+            preds = (probs[:, fake_idx] >= 0.50).long()
 
             all_preds.extend(preds.cpu().numpy().tolist())
             all_targets.extend(labels.numpy().tolist())
-            all_probs.extend(probs.cpu().numpy().tolist())
+            all_probs.extend(torch.stack([probs[:, real_idx], probs[:, fake_idx]], dim=1).cpu().numpy().tolist())
             all_paths.extend(paths)
             all_fnames.extend(fnames)
 
@@ -172,8 +94,8 @@ def main():
         for i in range(len(y_true)):
             if y_true[i] != y_pred[i]:
                 error_count += 1
-                t_label = RealFakeDataset.INDEX_TO_NAME[y_true[i]]
-                p_label = RealFakeDataset.INDEX_TO_NAME[y_pred[i]]
+                t_label = IDX_TO_LABEL[y_true[i]].lower()
+                p_label = IDX_TO_LABEL[y_pred[i]].lower()
                 p_real = all_probs[i][0]
                 p_fake = all_probs[i][1]
                 conf = max(p_real, p_fake)
@@ -208,7 +130,7 @@ def main():
     print("\n" + "=" * 55)
     print("           MODEL TEST EVALUATION SUMMARY          ")
     print("=" * 55)
-    print(f"Total Test Images:   {len(y_true)} (250 Real, 250 Fake)")
+    print(f"Total Test Images:   {len(y_true)} ({int((y_true == 0).sum())} Real, {int((y_true == 1).sum())} Fake)")
     print(f"Accuracy:            {acc * 100:.2f}%")
     print(f"Precision (Fake):    {prec * 100:.2f}%")
     print(f"Recall (Fake):       {rec * 100:.2f}%")

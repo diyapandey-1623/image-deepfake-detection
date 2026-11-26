@@ -15,7 +15,7 @@ Generates an exhaustive, publication-grade forensic report containing:
 import io
 import base64
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Any, Dict
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -30,6 +30,8 @@ from reportlab.platypus import (
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
+from src.class_config import build_forensic_rationale, get_verdict
 
 
 def generate_pdf_report(scan: Dict[str, Any]) -> io.BytesIO:
@@ -116,9 +118,9 @@ def generate_pdf_report(scan: Dict[str, Any]) -> io.BytesIO:
     story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#0284c7'), spaceAfter=12))
 
     # 2. Verdict Card
-    verdict = str(scan.get("verdict", "UNCERTAIN")).upper()
     fake_prob = float(scan.get("fake_probability", 0.5))
-    is_fake = verdict in ("DEEPFAKE", "FAKE") or (verdict not in ("REAL", "AUTHENTIC") and fake_prob >= 0.50)
+    raw_verdict = str(scan.get("verdict") or get_verdict(fake_prob)).lower()
+    is_fake = raw_verdict in ("deepfake", "fake")
     conf_percent = round((fake_prob if is_fake else (1.0 - fake_prob)) * 100, 1)
 
     if is_fake:
@@ -156,22 +158,12 @@ def generate_pdf_report(scan: Dict[str, Any]) -> io.BytesIO:
     story.append(verdict_table)
     story.append(Spacer(1, 10))
 
-    # 3. Forensic Decision Rationale (The exact reason why image is Real or Fake)
     story.append(Paragraph("1. Forensic Decision Rationale", heading2_style))
-    rationale_text = scan.get("forensic_rationale")
-    if not rationale_text:
-        if is_fake:
-            rationale_text = (
-                f"The deep neural network identified critical synthetic manipulation indicators ({round(fake_prob * 100, 1)}% synthetic probability). "
-                f"Activation patterns reveal non-biological skin smoothing, unnatural boundary blending along the facial periphery, "
-                f"and subtle high-frequency generator artifacts typical of diffusion or GAN-based image synthesis pipelines."
-            )
-        else:
-            rationale_text = (
-                f"The deep neural network verified organic biometric coherence ({round((1.0 - fake_prob) * 100, 1)}% authentic confidence). "
-                f"High-resolution facial micro-features exhibit authentic physical skin pores, natural directional lighting reflections across the corneas, "
-                f"and uniform camera sensor noise without generative interpolation signatures."
-            )
+    rationale_text = scan.get("forensic_rationale") or build_forensic_rationale(
+        "fake" if is_fake else "real",
+        fake_prob,
+        scan.get("regional_influence"),
+    )
 
     rationale_table = Table(
         [[Paragraph(rationale_text, body_style)]],
@@ -245,56 +237,51 @@ def generate_pdf_report(scan: Dict[str, Any]) -> io.BytesIO:
 
     regional_influence = scan.get("regional_influence") or []
     if not regional_influence:
-        # Default anatomical zones fallback if not stored
-        regional_influence = [
-            {"region": "Forehead & Hairline", "influence_level": "Low", "color": "Blue", "score": 8.5, "description": "Hairline boundary blend and forehead skin gradient."},
-            {"region": "Eyes & Periorbital Region", "influence_level": "Moderate" if is_fake else "Low", "color": "Yellow" if is_fake else "Blue", "score": 38.2 if is_fake else 14.5, "description": "Corneal reflections, iris symmetry, and eyelid margins."},
-            {"region": "Nose & Central Midface", "influence_level": "High" if is_fake else "Low", "color": "Red" if is_fake else "Blue", "score": 58.7 if is_fake else 12.0, "description": "Nasal ridge diffusion and pore texture consistency."},
-            {"region": "Mouth & Lips", "influence_level": "Moderate" if is_fake else "Low", "color": "Yellow" if is_fake else "Blue", "score": 31.4 if is_fake else 16.2, "description": "Vermilion border, tooth alignment, and lip texture fidelity."},
-            {"region": "Cheeks & Jawline", "influence_level": "Low", "color": "Blue", "score": 11.2, "description": "Jawline sharpness and peripheral background blending."}
+        story.append(Paragraph("Regional activation breakdown unavailable for this scan.", body_style))
+        story.append(Spacer(1, 10))
+    else:
+        region_rows = [
+            [
+                Paragraph("<b>Facial Region</b>", body_bold),
+                Paragraph("<b>Influence Tier</b>", body_bold),
+                Paragraph("<b>Color Indicator</b>", body_bold),
+                Paragraph("<b>Activation</b>", body_bold),
+                Paragraph("<b>Diagnostic Observation</b>", body_bold)
+            ]
         ]
 
-    region_rows = [
-        [
-            Paragraph("<b>Facial Region</b>", body_bold),
-            Paragraph("<b>Influence Tier</b>", body_bold),
-            Paragraph("<b>Color Indicator</b>", body_bold),
-            Paragraph("<b>Activation</b>", body_bold),
-            Paragraph("<b>Diagnostic Observation</b>", body_bold)
-        ]
-    ]
+        for item in regional_influence:
+            lvl = str(item.get("influence_level", "Low")).upper()
+            if "HIGH" in lvl or item.get("color") == "Red":
+                indicator = "<font color='#dc2626'><b>HIGH (RED)</b></font>"
+                score_txt = f"<font color='#dc2626'><b>{item.get('score', 0)}%</b></font>"
+            elif "MOD" in lvl or item.get("color") == "Yellow":
+                indicator = "<font color='#d97706'><b>MODERATE (YELLOW)</b></font>"
+                score_txt = f"<font color='#d97706'><b>{item.get('score', 0)}%</b></font>"
+            else:
+                indicator = "<font color='#2563eb'><b>LOW (BLUE)</b></font>"
+                score_txt = f"<font color='#2563eb'><b>{item.get('score', 0)}%</b></font>"
 
-    for item in regional_influence:
-        lvl = str(item.get("influence_level", "Low")).upper()
-        if "HIGH" in lvl or item.get("color") == "Red":
-            indicator = "<font color='#dc2626'><b>HIGH (RED)</b></font>"
-            score_txt = f"<font color='#dc2626'><b>{item.get('score', 0)}%</b></font>"
-        elif "MOD" in lvl or item.get("color") == "Yellow":
-            indicator = "<font color='#d97706'><b>MODERATE (YELLOW)</b></font>"
-            score_txt = f"<font color='#d97706'><b>{item.get('score', 0)}%</b></font>"
-        else:
-            indicator = "<font color='#2563eb'><b>LOW (BLUE)</b></font>"
-            score_txt = f"<font color='#2563eb'><b>{item.get('score', 0)}%</b></font>"
+            region_rows.append([
+                Paragraph(str(item.get("region", "Region")), body_style),
+                Paragraph(str(item.get("influence_level", "Low")), body_style),
+                Paragraph(indicator, body_style),
+                Paragraph(score_txt, body_style),
+                Paragraph(str(item.get("description", "-")), body_style)
+            ])
 
-        region_rows.append([
-            Paragraph(str(item.get("region", "Region")), body_style),
-            Paragraph(str(item.get("influence_level", "Low")), body_style),
-            Paragraph(indicator, body_style),
-            Paragraph(score_txt, body_style),
-            Paragraph(str(item.get("description", "-")), body_style)
-        ])
-
-    region_table = Table(region_rows, colWidths=[120, 75, 100, 60, 175])
-    region_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
-        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
-        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-    ]))
-    story.append(region_table)
+        region_table = Table(region_rows, colWidths=[120, 75, 100, 60, 175])
+        region_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(region_table)
+        story.append(Spacer(1, 10))
     story.append(Spacer(1, 10))
 
     # 6. Forensic Domain Checks

@@ -1,6 +1,6 @@
 import React from 'react'
 import { CheckCircle2, AlertTriangle, Info, BrainCircuit, Activity } from 'lucide-react'
-import { deriveReasons } from '../lib/verdict'
+import { deriveReasons, isFakeVerdict } from '../lib/verdict'
 
 export default function ReasonsList({ result }) {
   if (!result) return null
@@ -8,7 +8,7 @@ export default function ReasonsList({ result }) {
   const reasons = deriveReasons(result)
   const rationale = result.forensic_rationale
   const regionalInfluence = result.regional_influence || []
-  const isFake = (result.verdict || '').toLowerCase() === 'fake' || (result.fake_probability ?? 0) >= 0.5
+  const isFake = isFakeVerdict(result.fake_probability, result.verdict)
 
   return (
     <div className="space-y-4">

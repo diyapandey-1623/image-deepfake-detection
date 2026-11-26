@@ -4,7 +4,7 @@ backend/schemas.py
 Pydantic response models for the deepfake detection REST API.
 """
 
-from typing import List, Dict, Optional, Any, Union
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -34,7 +34,6 @@ class AnalyzeResponse(BaseModel):
     fake_probability: float = Field(..., description="Overall calculated fake probability (0.0 - 1.0)")
     faces: List[FaceDetectionResult] = Field(default_factory=list, description="Per-face crop detection results")
     heatmap_base64: Optional[str] = Field(default=None, description="Grad-CAM visual heatmap overlay")
-    gradcam_url: Optional[str] = Field(default=None, description="Alias for heatmap_base64")
     forensic_rationale: Optional[str] = Field(default=None, description="Technical rationale explaining verdict")
     regional_influence: Optional[List[RegionalInfluenceItem]] = Field(default=None, description="Facial region influence breakdown")
     checks: ForensicChecks = Field(..., description="Integrity check outcomes")

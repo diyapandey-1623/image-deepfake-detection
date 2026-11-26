@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useParams, useLocation, useNavigate, Link } from 'react-router-dom'
+import { useParams, useLocation, Link } from 'react-router-dom'
 import { Download, Link as LinkIcon, ArrowLeft, Check, AlertCircle } from 'lucide-react'
 import VerdictCard from '../components/VerdictCard'
 import ImageCompare from '../components/ImageCompare'
@@ -12,13 +12,20 @@ import { getReportById, getReportPdfUrl } from '../lib/api'
 export default function Result() {
   const { id } = useParams()
   const location = useLocation()
-  const navigate = useNavigate()
 
   const [result, setResult] = useState(location.state?.result || null)
-  const [previewUrl, setPreviewUrl] = useState(location.state?.previewUrl || null)
+  const [previewUrl] = useState(location.state?.previewUrl || null)
   const [loading, setLoading] = useState(!result)
   const [error, setError] = useState(null)
   const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl && previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl)
+      }
+    }
+  }, [previewUrl])
 
   useEffect(() => {
     if (!result && id) {
@@ -66,7 +73,7 @@ export default function Result() {
           {error || "Unable to locate this scan result."}
         </p>
         <Link
-          to="/"
+          to="/detect"
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-text text-white text-xs font-medium focus-ring"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
@@ -83,7 +90,7 @@ export default function Result() {
       {/* Navigation & Action Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2">
         <Link
-          to="/"
+          to="/detect"
           className="inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-text transition-colors focus-ring rounded py-1"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
@@ -119,7 +126,7 @@ export default function Result() {
       {/* 2. Image Comparison (Original vs Heatmap) */}
       <ImageCompare
         originalUrl={previewUrl || result.image_url}
-        heatmapUrl={result.gradcam_url || result.heatmap_base64}
+        heatmapUrl={result.heatmap_base64}
       />
 
       {/* 3. Forensic Rationale */}

@@ -4,19 +4,16 @@ test_preprocessing.py
 Unit tests for extract_media, face_crop, and frequency_transform.
 """
 
-import os
 import unittest
 import numpy as np
-from pathlib import Path
 
-from src.preprocessing.extract_media import load_image, validate_image_file, MediaValidationError
+from backend.model.samples import create_synthetic_portrait
 from src.preprocessing.face_crop import FaceDetector, NoFaceDetectedError
 from src.preprocessing.frequency_transform import (
     compute_fft_magnitude_spectrum,
     compute_ela_map,
     compute_laplacian_sharpness_map
 )
-from tests.generate_test_samples import create_synthetic_portrait
 
 
 class TestPreprocessing(unittest.TestCase):

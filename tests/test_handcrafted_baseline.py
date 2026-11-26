@@ -17,13 +17,12 @@ from src.features.handcrafted import (
     extract_color_chrominance_features,
     HANDCRAFTED_FEATURE_DIM
 )
+from backend.model.samples import create_synthetic_portrait
 from src.models.baselines import (
     ClassicalForensicBaseline,
     SpatialOnlyCNN,
     FrequencyOnlyCNN,
-    compute_classification_metrics
 )
-from tests.generate_test_samples import create_synthetic_portrait
 
 
 class TestHandcraftedAndBaselines(unittest.TestCase):

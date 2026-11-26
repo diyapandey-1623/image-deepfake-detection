@@ -10,6 +10,7 @@ transformers==5.24.0
 facenet-pytorch==2.6.0
 grad-cam==1.5.7
 ttach==0.0.3
+pyyaml>=6.0
 
 # Data Processing & Classical ML
 numpy==2.5.4

@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Hero from '../components/Hero'
 import Marquee from '../components/Marquee'
@@ -8,6 +9,15 @@ import Limits from '../components/Limits'
 import Footer from '../components/Footer'
 
 export default function Overview() {
+  const { hash } = useLocation()
+
+  useEffect(() => {
+    if (!hash) return
+    const el = document.getElementById(hash.slice(1))
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [hash])
   return (
     <div className="min-h-screen bg-[#0F45E3] text-white flex flex-col justify-between selection:bg-[#C8FF00] selection:text-[#0B1A5C]">
       {/* 1. Top Nav (Sticky, Blue) */}

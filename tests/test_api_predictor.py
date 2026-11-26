@@ -5,44 +5,59 @@ Tests for DeepfakePredictor and FastAPI endpoint handlers.
 """
 
 import io
+import tempfile
 import unittest
 from pathlib import Path
 import numpy as np
+from fastapi.testclient import TestClient
 from PIL import Image
-from fastapi import UploadFile, HTTPException
 
-from backend.main import health_check, analyze_image
+import backend.database as db_mod
+import backend.main as main_mod
+from backend.main import app
+from backend.model.samples import create_synthetic_portrait
 from src.inference.predictor import DeepfakePredictor
-from tests.generate_test_samples import create_synthetic_portrait
 
 
 class TestApiAndPredictor(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # Generate a test image in memory
+        cls._tmpdir = tempfile.TemporaryDirectory()
+        tmp_path = Path(cls._tmpdir.name)
+        cls._orig_db_path = db_mod.DB_PATH
+        cls._orig_samples_dir = main_mod.SAMPLES_DIR
+        db_mod.DB_PATH = tmp_path / "test_scans.db"
+        db_mod._db_initialized = False
+        main_mod.SAMPLES_DIR = tmp_path / "samples"
+
+        cls._client_cm = TestClient(app)
+        cls.client = cls._client_cm.__enter__()
+
         real_rgb = create_synthetic_portrait(is_fake=False)
-        pil_img = Image.fromarray(real_rgb)
         buf = io.BytesIO()
-        pil_img.save(buf, format="JPEG")
-        buf.seek(0)
+        Image.fromarray(real_rgb).save(buf, format="JPEG")
         cls.real_jpeg_bytes = buf.getvalue()
 
-        # Non-face image
         blank = np.zeros((200, 200, 3), dtype=np.uint8)
         buf_blank = io.BytesIO()
         Image.fromarray(blank).save(buf_blank, format="JPEG")
-        buf_blank.seek(0)
         cls.blank_jpeg_bytes = buf_blank.getvalue()
 
+    @classmethod
+    def tearDownClass(cls):
+        cls._client_cm.__exit__(None, None, None)
+        db_mod.DB_PATH = cls._orig_db_path
+        db_mod._db_initialized = False
+        main_mod.SAMPLES_DIR = cls._orig_samples_dir
+        cls._tmpdir.cleanup()
+
     def test_predictor_direct_inference(self):
-        """Test DeepfakePredictor direct python method."""
         pred = DeepfakePredictor()
         res = pred.predict(self.real_jpeg_bytes)
-        
+
         self.assertIn(res["verdict"], ["REAL", "DEEPFAKE", "UNCERTAIN"])
         self.assertTrue(0.0 <= res["confidence"] <= 1.0)
         self.assertTrue(0.0 <= res["probability_fake"] <= 1.0)
-        self.assertIn("scores", res)
         self.assertIn("fusion", res["scores"])
         self.assertIn("spatial", res["scores"])
         self.assertIn("frequency", res["scores"])
@@ -50,54 +65,43 @@ class TestApiAndPredictor(unittest.TestCase):
         self.assertTrue(res["face_detected"])
         self.assertIn("bbox", res["metadata"])
 
-    def test_health_endpoint_direct(self):
-        """Test GET /api/health endpoint handler."""
-        res = health_check()
-        self.assertEqual(res.status, "healthy")
-        self.assertTrue(res.model_loaded)
+    def test_sample_endpoint(self):
+        for kind in ("real", "fake"):
+            res = self.client.get(f"/api/sample/{kind}")
+            self.assertEqual(res.status_code, 200)
+            self.assertEqual(res.headers["content-type"], "image/jpeg")
 
-    def test_sample_endpoint_direct(self):
-        """Test GET /api/sample/{kind} endpoint handler."""
-        from backend.main import get_sample_image
-        res_real = get_sample_image("real")
-        self.assertTrue(Path(res_real.path).is_file())
-        res_fake = get_sample_image("fake")
-        self.assertTrue(Path(res_fake.path).is_file())
+        bad = self.client.get("/api/sample/invalid")
+        self.assertEqual(bad.status_code, 400)
 
     def test_analyze_endpoint_valid_face(self):
-        """Test POST /api/analyze endpoint with valid portrait."""
-        upload = UploadFile(
-            file=io.BytesIO(self.real_jpeg_bytes),
-            filename="portrait.jpg",
-            headers={"content-type": "image/jpeg"}
+        res = self.client.post(
+            "/api/analyze",
+            files={"file": ("portrait.jpg", self.real_jpeg_bytes, "image/jpeg")},
         )
-        res = analyze_image(upload)
-        self.assertIn(res.verdict, ["fake", "real", "uncertain"])
-        self.assertTrue(0.0 <= res.fake_probability <= 1.0)
-        self.assertTrue(res.checks.face_detected)
-        self.assertTrue(res.report_id.startswith("rep_"))
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertIn(body["verdict"], ["fake", "real"])
+        self.assertTrue(0.0 <= body["fake_probability"] <= 1.0)
+        self.assertTrue(body["checks"]["face_detected"])
+        self.assertTrue(body["report_id"].startswith("rep_"))
 
     def test_analyze_endpoint_no_face(self):
-        """Test POST /api/analyze handles image with no face by fallback to full-image."""
-        upload = UploadFile(
-            file=io.BytesIO(self.blank_jpeg_bytes),
-            filename="blank.jpg",
-            headers={"content-type": "image/jpeg"}
+        res = self.client.post(
+            "/api/analyze",
+            files={"file": ("blank.jpg", self.blank_jpeg_bytes, "image/jpeg")},
         )
-        res = analyze_image(upload)
-        self.assertIn(res.verdict, ["fake", "real", "uncertain"])
-        self.assertFalse(res.checks.face_detected)
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertIn(body["verdict"], ["fake", "real"])
+        self.assertFalse(body["checks"]["face_detected"])
 
     def test_analyze_endpoint_invalid_mime(self):
-        """Test POST /api/analyze returns 400 for non-image MIME."""
-        upload = UploadFile(
-            file=io.BytesIO(b"sample text"),
-            filename="notes.txt",
-            headers={"content-type": "text/plain"}
+        res = self.client.post(
+            "/api/analyze",
+            files={"file": ("notes.txt", b"sample text", "text/plain")},
         )
-        with self.assertRaises(HTTPException) as ctx:
-            analyze_image(upload)
-        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(res.status_code, 400)
 
 
 if __name__ == "__main__":

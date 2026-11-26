@@ -3,8 +3,8 @@ import { Check, Loader2, X } from 'lucide-react'
 
 const STEPS = [
   { id: 1, label: 'Face detection & boundary margin extraction' },
-  { id: 2, label: 'Computing 2D Fourier power spectrum & ELA' },
-  { id: 3, label: 'Bidirectional cross-attention feature fusion' },
+  { id: 2, label: 'EXIF metadata & Error Level Analysis (ELA)' },
+  { id: 3, label: 'Vision Transformer neural classification' },
   { id: 4, label: 'Generating Grad-CAM forensic visualization' },
 ]
 
