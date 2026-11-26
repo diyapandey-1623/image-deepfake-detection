@@ -1,0 +1,65 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Caches & Test
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Environments
+venv/
+env/
+.venv/
+ENV/
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+*.env
+kaggle.json
+*.pem
+*.key
+
+# Database Files with User/Scan Data
+*.db
+*.sqlite
+*.sqlite3
+
+# Large Datasets & Storage (Protected) - keep folder structure
+data/*
+!data/.gitkeep
+data_small/
+dataset/
+
+# Heavy Model Weights (Safetensors / Weights) - keep folder structure
+models/*
+!models/.gitkeep
+checkpoints/
+*.pt
+*.pth
+*.safetensors
+*.bin
+*.onnx
+*.ckpt
+
+# Evaluation Outputs
+outputs/
+output/
+results/
+
+# Node / Web Frontend
+frontend/node_modules/
+node_modules/
+frontend/dist/
+dist/
+.DS_Store
+
+# Temporary review holding area
+_to_delete/
+FOLDER_BEFORE.txt
+FOLDER_AFTER.txt

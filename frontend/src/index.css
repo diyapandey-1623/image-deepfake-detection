@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --blue: #0F45E3;
+  --lime: #C8FF00;
+  --navy: #0B1A5C;
+  --paper: #FFF9F7;
+  --red: #FF4D4D;
+  --green: #1FD17A;
+}
+
+@layer base {
+  body {
+    background-color: var(--blue);
+    color: #FFFFFF;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Bricolage Grotesque', sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+  }
+}
+
+/* Keyframe animations */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes spin-badge {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 24s linear infinite;
+}
+
+.animate-spin-badge {
+  animation: spin-badge 14s linear infinite;
+}
+
+/* Respect user motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none !important;
+    transform: none !important;
+  }
+  .animate-spin-badge {
+    animation: none !important;
+  }
+}
+
+/* Hard offset shadow helpers */
+.shadow-hard-navy {
+  box-shadow: 6px 6px 0px #0B1A5C;
+}
+
+.shadow-hard-navy-lg {
+  box-shadow: 8px 8px 0px #0B1A5C;
+}
+
+.shadow-hard-lime {
+  box-shadow: 4px 4px 0px #C8FF00;
+}
+
+/* Custom interactive button press effect */
+.btn-press {
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.btn-press:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px #0B1A5C;
+}
+.btn-press:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0px 0px 0px #0B1A5C;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0B1A5C;
+}
+::-webkit-scrollbar-thumb {
+  background: #C8FF00;
+  border: 1px solid #0B1A5C;
+}

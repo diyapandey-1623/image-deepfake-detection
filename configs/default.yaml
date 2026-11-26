@@ -1,0 +1,40 @@
+# ==============================================================================
+# Multimodal Deepfake Detection System Configuration (Image Modality)
+# All parameters are documented with defense rationales for academic viva.
+# ==============================================================================
+
+model:
+  # Design decision: Keep model capacity compact (<3M params) to prevent overfitting
+  # when training from scratch without massive internet-scale datasets.
+  spatial_dim: 128            # Latent dimension for spatial RGB face CNN embedding
+  frequency_dim: 128          # Latent dimension for 2D FFT/spectral CNN embedding
+  handcrafted_dim: 32         # Dimension of projected forensic handcrafted features
+  fusion_dim: 128             # Common dimension for cross-attention projection
+  num_heads: 4                # Number of attention heads in bidirectional cross-attention
+  dropout: 0.35               # Moderate dropout rate for regularization
+  use_pretrained_backbone: false  # GROUND RULE: false by default. No external weights.
+
+data:
+  image_size: 112             # Face crop resolution (112x112: standardized for fast from-scratch training)
+  frequency_size: 112         # 2D FFT power spectrum map resolution
+  batch_size: 16
+  num_workers: 0              # Set to 0 for Windows compatibility
+  seed: 42                    # Fixed random seed for complete reproducibility
+  val_split: 0.15             # 15% validation split
+  test_split: 0.15            # 15% test split (70% training)
+  data_dir: "data/small"
+  cache_dir: "data/cache"
+  labels_file: "data/labels.csv"
+
+training:
+  epochs: 25
+  learning_rate: 0.0005       # AdamW learning rate
+  weight_decay: 0.0001        # L2 regularization
+  early_stopping_patience: 6  # Stop training if val AUC does not improve for 6 epochs
+  aux_loss_weight: 0.3        # Loss weight for auxiliary spatial & frequency heads
+  save_dir: "checkpoints"
+  results_dir: "results"
+
+inference:
+  decision_threshold: 0.50    # >= 0.50 -> FAKE, < 0.50 -> REAL
+  checkpoint_path: "models/best_model_vit"
