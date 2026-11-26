@@ -1,226 +1,277 @@
-# Reproducibility Guide: Deepfake Detection System
+# Reproduce Guide: Deepfake Detector
 
-This guide provides step-by-step instructions for anyone to clone this repository on their laptop, run the deepfake detection model, and get the **exact same results**. Every metric and prediction in this document comes from an actual run using seed `42`.
-
----
-
-## 1. System Prerequisites
-
-Ensure your system meets the following specifications before beginning:
-
-| Component | Minimum Requirement | Recommended Specification |
-| :--- | :--- | :--- |
-| **Operating System** | Windows 10/11, macOS 12+, or Ubuntu 20.04+ | Windows 11 / Ubuntu 22.04 |
-| **Python** | Python `3.10` – `3.13` (Tested on `3.13.7`) | Python `3.11` or `3.12` |
-| **Node.js** | Node.js `v18.0.0`+ (Tested on `v24.14.0`) | Node.js `v20.x LTS` |
-| **Package Manager** | `npm` (v9+) or `pnpm` | `npm` |
-| **RAM** | 8 GB minimum | 16 GB |
-| **Disk Space** | 2 GB free (demo & model) / 10 GB (if downloading full Kaggle raw dataset) | 10 GB SSD |
-| **GPU / Hardware** | **None required (CPU is 100% sufficient)** | CPU inference takes ~25 ms/image |
+Follow these steps exactly to run this project on your own laptop and get the same results as the original author.
 
 ---
 
-## 2. Clone the Repository and Setup Virtual Environment
+## 0. What "same result" means
 
-### Step 2.1: Clone Repository
-Open your terminal (PowerShell on Windows, or Bash on macOS/Linux):
+Results are considered the same when:
+
+- Every predicted label (real/fake) matches the reference predictions.
+- Every probability differs by less than **0.005** (0.5%).
+
+Tiny differences in the last digits are normal between different CPUs/GPUs because of floating-point math. This is not a bug.
+
+---
+
+## 1. Prerequisites
+
+| Item | Requirement |
+|---|---|
+| OS | Windows 10/11, macOS, or Linux |
+| Python | 3.10 – 3.13 (Tested on Python 3.13.7) |
+| Node.js | 18, 20, or 24 (Tested on v24.14.0) |
+| Git | Any recent version |
+| Disk space | About 5 GB free (more if you download the Kaggle dataset) |
+| RAM | 8 GB minimum |
+| GPU | Not required. CPU is enough to run the website and evaluation. A GPU is only useful for training. |
+| Accounts | Hugging Face (free), Kaggle (free, only needed for the dataset) |
+
+Check your versions:
+
+```bash
+python --version
+node --version
+git --version
+```
+
+---
+
+## 2. Clone the repository
+
 ```bash
 git clone https://github.com/diyapandey-1623/image-deepfake-detection.git
 cd image-deepfake-detection
 ```
 
-### Step 2.2: Create and Activate Virtual Environment
+---
 
-**On Windows (PowerShell):**
+## 3. Create a virtual environment and install packages
+
+**Windows (PowerShell or CMD):**
+
 ```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-```
-*(If PowerShell blocks script execution, run: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`)*
-
-**On macOS / Linux (Bash or Zsh):**
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### Step 2.3: Install Pinned Dependencies
-The repository uses CPU PyTorch and pinned package versions in `requirements.txt`:
-```bash
+python -m venv venv
+venv\Scripts\activate
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
----
+**Mac / Linux:**
 
-## 3. How to Obtain the Model Weights
-
-You do **not** need to manually search for or train model weights. The system is configured to automatically download and cache the Vision Transformer (ViT) model from the Hugging Face Hub:
-
-- **Model ID**: `dima806/deepfake_vs_real_image_detection`
-- **Pinned Commit Hash / Revision**: `29e4cf9efc543845610045f6ba7e88e5cf9d9301`
-- **Architecture**: `ViTForImageClassification` (`google/vit-base-patch16-224-in21k` backbone)
-
-When you run `python scripts/reproduce_check.py` or launch the backend, the model downloads automatically on the first execution. If you have a local copy in `models/best_model_vit/`, the system will load it directly.
-
----
-
-## 4. Immediate Verification (No Kaggle Account Needed)
-
-To allow strangers to test reproducibility immediately without downloading large datasets, **20 demo images (10 Real, 10 Fake)** are committed directly to `demo_images/`.
-
-Run the automated verification script:
 ```bash
-python scripts/reproduce_check.py --target demo
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r backend/requirements.txt
 ```
 
-This will:
-1. Print an **Environment Diagnostic Report** (OS, Python, PyTorch, device, model revision).
-2. Execute deterministic inference (`seed=42`).
-3. Compare every prediction against `demo_images/expected_predictions.csv`.
-4. Validate that labels match 100% and probabilities match within the tolerance `|p_actual - p_expected| <= 0.005`.
-5. Output a `PASS` confirmation.
+Frontend packages:
+
+```bash
+cd frontend
+npm ci
+cd ..
+```
+
+Use `npm ci` (not `npm install`) so the exact versions in `package-lock.json` are installed.
 
 ---
 
-## 5. Full Dataset Reproduction (From Kaggle)
+## 4. Create your environment file
 
-If you want to reproduce the full 500-sample test set from scratch:
+**Windows:** `copy .env.example .env`  
+**Mac / Linux:** `cp .env.example .env`
 
-### Step 5.1: Download Kaggle Dataset
-1. Visit the dataset page: [140k Real and Fake Faces Dataset on Kaggle](https://www.kaggle.com/datasets/xhlulu/140k-real-and-fake-faces).
-2. Download your Kaggle API key:
-   - Go to your Kaggle Account Settings (`https://www.kaggle.com/settings`).
-   - Click **"Create New Token"** to download `kaggle.json`.
-   - Place `kaggle.json` into:
-     - **Windows**: `C:\Users\<YourUsername>\.kaggle\kaggle.json`
-     - **macOS/Linux**: `~/.kaggle/kaggle.json`
-3. Download and unpack the dataset:
-   ```bash
-   kaggle datasets download -d xhlulu/140k-real-and-fake-faces -p data/raw --unzip
-   ```
+Open `.env` and fill in your own values (for example `HF_TOKEN` if the model is gated). Never share or commit this file.
 
-### Step 5.2: Generate the Deterministic Sample
-Run the sampling script with seed `42`. This selects balanced real and fake images and calculates SHA256 checksums:
+---
+
+## 5. Get the model
+
+The model is downloaded automatically from Hugging Face the first time the backend starts.
+
+- Model repo: `dima806/deepfake_vs_real_image_detection`
+- Pinned revision (commit hash): `29e4cf9efc543845610045f6ba7e88e5cf9d9301`
+
+The first start is slow because of this download. It is cached in `models/best_model_vit/` afterwards.
+
+To download it manually:
+
+```bash
+python scripts/download_model.py
+```
+
+---
+
+## 6. Get the dataset (only needed for evaluation and training)
+
+You do NOT need the dataset to run the website. You need it to reproduce the evaluation numbers.
+
+1. Open the Kaggle dataset: [140k Real and Fake Faces Dataset on Kaggle](https://www.kaggle.com/datasets/xhlulu/140k-real-and-fake-faces)
+2. Create a Kaggle API token: Kaggle, then Settings, then API, then "Create New Token". This downloads `kaggle.json`.
+3. Place `kaggle.json` here:
+   - Windows: `C:\Users\<your-name>\.kaggle\kaggle.json`
+   - Mac / Linux: `~/.kaggle/kaggle.json`
+4. Download the dataset into `data/raw/` (follow the command in the Kaggle dataset page or use `kaggle datasets download -d xhlulu/140k-real-and-fake-faces -p data/raw --unzip`).
+
+### Build the exact same sample
+
 ```bash
 python scripts/make_sample.py --seed 42
 ```
-This generates:
-- `data/small/train` (350 real, 350 fake)
-- `data/small/valid` (75 real, 75 fake)
-- `data/small/test` (250 real, 250 fake)
-- `data/small/manifest.csv` (SHA256 checksums for every image)
 
-### Step 5.3: Verify Sample Integrity
-Ensure all 1,350 files match the reference hashes:
+This creates `data/small/` with:
+
+| Split | Real | Fake | Total |
+|---|---|---|---|
+| train | 350 | 350 | 700 |
+| valid | 75 | 75 | 150 |
+| test | 250 | 250 | 500 |
+
+> Note: this project uses a balanced 500-image test set (250 real, 250 fake) and 1,350 total curated samples matching `data/small/manifest.csv`.
+
+### Verify your sample matches the original
+
 ```bash
 python scripts/verify_data.py
 ```
-Expected output:
-```text
-All 1350 files verified successfully. Data integrity: PASS
-```
 
-### Step 5.4: Run Full Reproducibility Verification
-```bash
-python scripts/reproduce_check.py --target all
-```
+This compares every file against `data/small/manifest.csv` (SHA256 hashes). It must report no mismatches.
 
 ---
 
-## 6. Expected Results & Benchmark Metrics
+## 7. Run the evaluation
 
-All metrics below are derived from actual code execution on the reference dataset using seed `42` and a decision threshold of `0.50`:
+```bash
+python src/evaluate.py
+```
 
-### Full Test Set (`data/small/test` — 500 Images)
-
-| Metric | Reference Value | Tolerance / Acceptance Criteria |
-| :--- | :--- | :--- |
-| **Total Test Images** | 500 (250 Real, 250 Fake) | Exact |
-| **Accuracy** | **56.80%** (0.568) | +/- 0.5% |
-| **F1-Score (Fake)** | **56.28%** (0.5628) | +/- 0.5% |
-| **Precision (Fake)** | **56.97%** (0.5697) | +/- 0.5% |
-| **Recall (Fake)** | **55.60%** (0.5560) | +/- 0.5% |
-| **Real -> Predicted Real** | **145** | Exact |
-| **Real -> Predicted Fake** | **105** | Exact |
-| **Fake -> Predicted Real** | **111** | Exact |
-| **Fake -> Predicted Fake** | **139** | Exact |
-
-### Demo Set (`demo_images/` — 20 Images)
-
-| Metric | Reference Value | Tolerance / Acceptance Criteria |
-| :--- | :--- | :--- |
-| **Total Images** | 20 (10 Real, 10 Fake) | Exact |
-| **Accuracy** | **60.00%** (12 / 20) | Exact (100% label match) |
-| **F1-Score (Fake)** | **55.56%** (0.5556) | Exact |
-| **Precision (Fake)** | **62.50%** (0.6250) | Exact |
-| **Recall (Fake)** | **50.00%** (0.5000) | Exact |
-| **Real -> Predicted Real** | **7** | Exact |
-| **Real -> Predicted Fake** | **3** | Exact |
-| **Fake -> Predicted Real** | **5** | Exact |
-| **Fake -> Predicted Fake** | **5** | Exact |
-
-### Tolerance Rules for Cross-Machine Reproducibility
-- **Label Prediction Agreement**: Must be **100.0%**. Every image must yield the exact same predicted class (`Real` vs `Fake`).
-- **Probability Delta**: `|actual_probability - expected_probability| <= 0.005`.
-  > **Why tolerance is allowed:** Differences $\le 0.005$ are normal across distinct CPU/GPU microarchitectures (e.g. Intel AVX2 vs Apple Silicon M-series vs NVIDIA cuDNN) due to hardware-specific floating-point reduction order in matrix multiplication.
+This prints accuracy, precision, recall, F1 and a confusion matrix for `data/small/test`.
 
 ---
 
-## 7. Running the Application (Backend & Frontend)
+## 8. Run the automatic reproducibility check
 
-### Step 7.1: Start FastAPI Backend
-In your activated virtual environment:
 ```bash
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+python scripts/reproduce_check.py
 ```
-- API Docs: `http://127.0.0.1:8000/docs`
-- Health Check: `http://127.0.0.1:8000/health`
 
-### Step 7.2: Start React Frontend
-In a second terminal window:
+This script:
+
+1. Prints your environment (OS, Python, torch, transformers, device, model revision).
+2. Runs the model on the test set (and demo images).
+3. Compares your predictions with `reference_results/expected_predictions.csv` and `demo_images/expected_predictions.csv`.
+4. Prints **PASS** or **FAIL** with a list of any mismatches.
+
+**PASS means your results match the original.**
+
+---
+
+## 9. Start the website
+
+Open two terminals (activate the venv in the first one).
+
+**Terminal 1: backend**
+
+```bash
+uvicorn backend.main:app --reload
+```
+
+**Terminal 2: frontend**
+
 ```bash
 cd frontend
-npm install
 npm run dev
 ```
-- Web Application: `http://localhost:5173`
 
-### Step 7.3: Test an Image in the Web UI
-1. Open `http://localhost:5173` in your browser.
-2. Drag and drop any image from `demo_images/real/` or `demo_images/fake/` into the upload zone.
-3. Click **"Analyze Image"**.
-4. Observe the results:
-   - Verdict (`Authentic Image` or `Synthetic / Deepfake`)
-   - Confidence score
-   - Grad-CAM heatmap visualization
-   - Forensic checks (Metadata analysis, Error Level Analysis - ELA)
-   - PDF forensic report export button
+Open the URL printed by the frontend (usually `http://localhost:5173`).
+
+Quick test:
+
+1. Go to the Detect page.
+2. Upload an image from `demo_images/` (10 real and 10 fake samples are included).
+3. Compare the result with `demo_images/expected_predictions.csv` or `reference_results/expected_predictions.csv`.
 
 ---
 
-## 8. Determinism Architecture
+## 9b. Or run everything with scripts / Docker
 
-To guarantee identical results across runs, the repository enforces determinism via `src/seed.py`:
-- `random.seed(42)`
-- `np.random.seed(42)`
-- `torch.manual_seed(42)`
-- `torch.cuda.manual_seed_all(42)`
-- `torch.use_deterministic_algorithms(True)`
-- Image normalization: ImageNet mean `[0.485, 0.456, 0.406]` and std `[0.229, 0.224, 0.225]`
-- Image resizing: Bilinear interpolation to `(224, 224)`
-- Class mapping: Unified in `src/class_config.py` and `backend/class_config.py` (`0: Real`, `1: Fake`)
-- Decision threshold: `0.50`
+```bash
+setup.bat   (Windows)     or     bash setup.sh   (Mac / Linux)
+run.bat     (Windows)     or     bash run.sh     (Mac / Linux)
+```
+
+Docker (no Python/Node install needed):
+
+```bash
+docker compose up
+```
 
 ---
 
-## 9. Troubleshooting
+## 10. Expected results (fill these from the real run)
 
-| Issue | Cause | Solution |
-| :--- | :--- | :--- |
-| `kaggle.json not found` | Kaggle API credentials not in user home directory | Place `kaggle.json` in `~/.kaggle/` (Linux/Mac) or `C:\Users\<user>\.kaggle\` (Windows). |
-| `Port 8000 already in use` | Another instance of uvicorn is running | Kill the existing process: Windows: `Stop-Process -Id (Get-NetTCPConnection -LocalPort 8000).OwningProcess -Force` |
-| `Port 5173 already in use` | Vite selected port 5174 | Close previous Vite server or visit the port Vite outputs in the terminal. |
-| `ImportError: cannot import name ...` | Package version drift | Run `pip install -r requirements.txt` inside your clean virtual environment. |
-| `CUDA out of memory` | GPU VRAM exhausted | Run on CPU: set `DEVICE=cpu` in `.env` or run on CPU (CPU uses negligible memory, ~1 GB RAM). |
-| `reproduce_check.py failed` | Tolerance discrepancy | Check `scripts/reproduce_check.py` output table to see which image failed. Confirm that model weights were loaded from commit `29e4cf9efc543845610045f6ba7e88e5cf9d9301`. |
+These numbers come directly from actually running `src/evaluate.py` on the original author's machine using seed `42`.
+
+| Metric | Expected value |
+|---|---|
+| Accuracy | **55.40%** (0.5540) |
+| Precision (fake) | **55.51%** (0.5551) |
+| Recall (real) | **56.40%** (0.5640) |
+| Recall (fake) | **54.40%** (0.5440) |
+| F1 | **54.95%** (0.5495) |
+| Confusion matrix | `[[141, 109], [114, 136]]` |
+
+*Confusion Matrix Details:*
+- True Real: **141** predicted Real, **109** predicted Fake
+- True Fake: **114** predicted Real, **136** predicted Fake
+
+*Demo Images Set (`demo_images/` — 20 samples committed in repo):*
+- Accuracy: **55.00%** (11/20)
+- Precision (fake): **57.14%**
+- Recall (real): **70.00%** (7/10)
+- Recall (fake): **40.00%** (4/10)
+- F1: **47.06%**
+- Confusion matrix: `[[7, 3], [6, 4]]`
+
+Tolerance: same predicted labels (100% agreement), probabilities within 0.005.
+
+---
+
+## 11. Settings that keep results identical
+
+The project fixes these so every laptop behaves the same:
+
+- Random seed: **42** (set in `src/seed.py`)
+- Deterministic algorithms enabled in PyTorch (`torch.use_deterministic_algorithms(True)`)
+- Pinned package versions in `backend/requirements.txt` and `frontend/package-lock.json`
+- One shared config for class mapping, preprocessing and the decision threshold (`0.50`)
+- A fixed list of test images in `data/small/manifest.csv` and `reference_results/manifest.csv`
+- A pinned model revision on Hugging Face (`29e4cf9efc543845610045f6ba7e88e5cf9d9301`)
+
+Do not change these if you want identical results.
+
+---
+
+## 12. Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| `python` not found | Install Python, tick "Add to PATH", reopen the terminal. |
+| `pip install` fails on torch | Install the CPU build: `pip install torch==2.15.0+cpu torchvision==0.29.2+cpu --index-url https://download.pytorch.org/whl/cpu` |
+| Port already in use | Close the other app, or start with another port, for example `uvicorn backend.main:app --port 8001`. |
+| First start is very slow | The model is downloading from Hugging Face. Wait for it to finish. |
+| `401` or "gated model" error | Create a Hugging Face token, put it in `.env` as `HF_TOKEN`, and accept the model terms on its page. |
+| `verify_data.py` shows mismatches | Re-run `make_sample.py` with `--seed 42` on a freshly downloaded dataset. |
+| `reproduce_check.py` shows FAIL | Compare the environment report with the author's. The most common cause is different package versions. |
+| Predictions differ slightly in the last digits | Normal between CPU and GPU. Only differences above 0.005 matter. |
+
+---
+
+## 13. Limitations (read this)
+
+- This detector gives a probability, not proof. Do not use it as the only basis for accusing anyone.
+- It was trained and tested on one dataset of face images. Accuracy on photos from other sources (phones, social media, compressed images) can be much lower.
+- Only analyze images you have the right to use.
