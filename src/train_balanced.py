@@ -27,8 +27,9 @@ from torchvision import transforms
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 
-from src.class_config import CLASS_TO_IDX, IDX_TO_LABEL
+from src.class_config import resolve_fake_label_id
 from src.vit_transforms import get_vit_transform
+from src.vit_utils import RealFakeDataset, resolve_vit_model_source
 
 
 def set_seed(seed=42):
@@ -55,53 +56,16 @@ class JpegCompressionTransform:
         return img
 
 
-class BalancedRealFakeDataset(Dataset):
-    """Maps 'real' -> 0, 'fake' -> 1 matching shared config."""
-    CLASS_MAP = CLASS_TO_IDX
-
-    def __init__(self, root_dir, transform=None):
-        self.root_dir = root_dir
-        self.transform = transform
-        self.samples = []
-
-        for class_name, label in self.CLASS_MAP.items():
-            folder = os.path.join(root_dir, class_name)
-            if not os.path.exists(folder):
-                continue
-            for fname in sorted(os.listdir(folder)):
-                if fname.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
-                    self.samples.append((os.path.join(folder, fname), label))
-
-        if len(self.samples) == 0:
-            raise RuntimeError(f"No valid images found in {root_dir}")
-
-    def __len__(self):
-        return len(self.samples)
-
-    def __getitem__(self, idx):
-        path, label = self.samples[idx]
-        image = Image.open(path).convert('RGB')
-        if self.transform:
-            image = self.transform(image)
-        return image, label
-
-
 def get_transforms():
     train_transform = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BILINEAR),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.05),
         JpegCompressionTransform(quality_range=(70, 95), p=0.35),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
     ])
-
-    eval_transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-    ])
-    return train_transform, eval_transform
+    return train_transform, get_vit_transform()
 
 
 def train_epoch(model, loader, optimizer, criterion, device):
@@ -183,15 +147,15 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"[Device] Running on compute hardware: {device.type.upper()}")
 
-    base_dir = r'c:\deepfake detection model\deepfake-detector'
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     data_dir = os.path.join(base_dir, 'data', 'small')
     models_dir = os.path.join(base_dir, 'models')
-    pretrained_path = os.path.join(models_dir, 'pretrained_vit')
+    pretrained_path = resolve_vit_model_source()
 
     train_transform, eval_transform = get_transforms()
-    train_dataset = BalancedRealFakeDataset(os.path.join(data_dir, 'train'), transform=train_transform)
-    valid_dataset = BalancedRealFakeDataset(os.path.join(data_dir, 'valid'), transform=eval_transform)
-    test_dataset = BalancedRealFakeDataset(os.path.join(data_dir, 'test'), transform=eval_transform)
+    train_dataset = RealFakeDataset(os.path.join(data_dir, 'train'), transform=train_transform)
+    valid_dataset = RealFakeDataset(os.path.join(data_dir, 'valid'), transform=eval_transform)
+    test_dataset = RealFakeDataset(os.path.join(data_dir, 'test'), transform=eval_transform)
 
     print(f"[Data] Loaded {len(train_dataset)} train, {len(valid_dataset)} valid, {len(test_dataset)} test.")
 

@@ -5,7 +5,23 @@ export default function ImageCompare({ originalUrl, heatmapUrl }) {
   const [blend, setBlend] = useState(50) // 0: 100% original, 100: 100% heatmap
   const [activeTab, setActiveTab] = useState('split') // 'split' or 'slider'
 
-  if (!originalUrl) return null
+  if (!originalUrl && !heatmapUrl) return null
+
+  if (!originalUrl && heatmapUrl) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-5 sm:p-6 shadow-subtle">
+        <h3 className="font-semibold text-sm text-text mb-1">
+          Grad-CAM activation overlay
+        </h3>
+        <p className="text-xs text-text-muted mb-4">
+          Neural attention heatmap stored with this forensic report.
+        </p>
+        <div className="max-w-md mx-auto rounded-lg overflow-hidden border border-border bg-surface-subtle flex items-center justify-center p-2">
+          <img src={heatmapUrl} alt="Grad-CAM activation overlay" className="max-h-72 w-auto object-contain rounded" />
+        </div>
+      </div>
+    )
+  }
 
   if (!heatmapUrl) {
     return (

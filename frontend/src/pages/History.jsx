@@ -67,7 +67,7 @@ export default function History() {
           </button>
         </div>
       ) : (
-        <ScanTable scans={scans} onRefresh={loadHistory} />
+        <ScanTable scans={scans} />
       )}
     </div>
   )

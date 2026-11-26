@@ -47,25 +47,9 @@ export const MOCK_RESULTS = {
       metadata_flags: [],
       ela_flag: false,
     },
-    model_name: 'custom_pytorch (efficientnet_b0)',
+    model_name: 'dima806/deepfake_vs_real_image_detection',
     processing_time_ms: 98.4,
     created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-  },
-
-  uncertain: {
-    report_id: 'rep_demo_unc_551',
-    verdict: 'uncertain',
-    fake_probability: 0.512,
-    faces: [],
-    heatmap_base64: DUMMY_HEATMAP_BASE64,
-    checks: {
-      face_detected: false,
-      metadata_flags: ['Compressed Web Stream'],
-      ela_flag: true,
-    },
-    model_name: 'prithivMLmods/Deep-Fake-Detector-v2-Model',
-    processing_time_ms: 142.8,
-    created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
   },
 }
 

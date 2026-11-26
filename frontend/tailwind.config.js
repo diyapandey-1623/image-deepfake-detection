@@ -25,12 +25,41 @@ export default {
         paper: {
           brand: '#FFF9F7',
         },
+        card: '#FFFFFF',
+        border: '#DCE3F2',
+        text: {
+          DEFAULT: '#0B1A5C',
+          muted: '#5A678C',
+        },
+        surface: {
+          subtle: '#F4F7FC',
+        },
+        primary: {
+          DEFAULT: '#0F45E3',
+          dark: '#0B1A5C',
+          light: '#DCE7FF',
+        },
         verdict: {
           fake: '#FF4D4D',
-          real: '#1FD17A',
+          fakeBg: '#FEF2F2',
+          fakeBorder: '#FECACA',
+          real: '#16A34A',
+          realBg: '#F0FDF4',
+          realBorder: '#BBF7D0',
+          uncertain: '#D97706',
+          uncertainBg: '#FFFBEB',
+          uncertainBorder: '#FDE68A',
         },
       },
+      borderWidth: {
+        '3': '3px',
+      },
+      spacing: {
+        '4.5': '1.125rem',
+      },
       boxShadow: {
+        'subtle': '0 1px 2px rgba(11, 26, 92, 0.06)',
+        'modal': '0 10px 25px rgba(11, 26, 92, 0.14)',
         'hard-navy-sm': '3px 3px 0px #0B1A5C',
         'hard-navy': '6px 6px 0px #0B1A5C',
         'hard-navy-lg': '8px 8px 0px #0B1A5C',

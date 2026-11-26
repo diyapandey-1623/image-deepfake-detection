@@ -5,6 +5,7 @@ torch
 torchvision
 transformers
 pillow
+opencv-python
 facenet-pytorch
 grad-cam
 reportlab

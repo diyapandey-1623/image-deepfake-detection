@@ -72,7 +72,7 @@ export default function Home() {
           Forensic facial image verification
         </h1>
         <p className="text-xs sm:text-sm text-text-muted leading-relaxed max-w-xl mx-auto">
-          Multi-domain inspection evaluating spatial facial features, 2D Fourier power spectra, and Error Level Analysis (ELA) to detect synthetic generation and composite manipulation.
+          Multi-stage inspection combining MTCNN face localization, Vision Transformer classification, Grad-CAM explainability, and Error Level Analysis (ELA).
         </p>
       </div>
 
@@ -115,26 +115,26 @@ export default function Home() {
       {/* Forensic Pipeline Pillars */}
       <div className="max-w-2xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-border text-left">
         <div className="p-3.5 rounded-lg bg-card border border-border">
-          <div className="text-[11px] font-mono text-text-muted mb-1">01 · Spatial CNN</div>
-          <div className="text-xs font-medium text-text mb-1">Appearance consistency</div>
+          <div className="text-[11px] font-mono text-text-muted mb-1">01 · MTCNN</div>
+          <div className="text-xs font-medium text-text mb-1">Face localization</div>
           <p className="text-[11px] text-text-muted leading-normal">
-            Extracts blending seams, unnatural skin textures, and facial boundary margins.
+            Detects faces and expands boundaries by +20% to preserve hairline and jawline blending cues.
           </p>
         </div>
 
         <div className="p-3.5 rounded-lg bg-card border border-border">
-          <div className="text-[11px] font-mono text-text-muted mb-1">02 · Fourier 2D</div>
-          <div className="text-xs font-medium text-text mb-1">Spectral frequency</div>
+          <div className="text-[11px] font-mono text-text-muted mb-1">02 · Vision Transformer</div>
+          <div className="text-xs font-medium text-text mb-1">Patch-level classification</div>
           <p className="text-[11px] text-text-muted leading-normal">
-            Detects deconvolution grid artifacts and high-frequency power spectrum decay anomalies.
+            Evaluates 224×224 facial patches and Grad-CAM attention across 5 anatomical regions.
           </p>
         </div>
 
         <div className="p-3.5 rounded-lg bg-card border border-border">
-          <div className="text-[11px] font-mono text-text-muted mb-1">03 · Cross-Attention</div>
-          <div className="text-xs font-medium text-text mb-1">Multi-domain fusion</div>
+          <div className="text-[11px] font-mono text-text-muted mb-1">03 · Forensics</div>
+          <div className="text-xs font-medium text-text mb-1">ELA & EXIF audit</div>
           <p className="text-[11px] text-text-muted leading-normal">
-            Bidirectional cross-attention validates whether spatial cues match frequency fingerprints.
+            Checks JPEG recompression residuals and metadata tags for editing or generator signatures.
           </p>
         </div>
       </div>

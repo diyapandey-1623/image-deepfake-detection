@@ -1,18 +1,18 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, FileText, ArrowRight } from 'lucide-react'
-import { getVerdictData, formatDateTime } from '../lib/verdict'
+import { getVerdictData, isFakeVerdict } from '../lib/verdict'
+import { formatDateTime } from '../lib/format'
 import { getReportPdfUrl } from '../lib/api'
 
-export default function ScanTable({ scans = [], onRefresh }) {
+export default function ScanTable({ scans = [] }) {
   const [search, setSearch] = useState('')
   const [filterVerdict, setFilterVerdict] = useState('all')
 
   const filtered = scans.filter((scan) => {
-    const norm = String(scan.verdict || '').toLowerCase()
-    if (filterVerdict === 'fake' && norm !== 'fake' && norm !== 'deepfake') return false
-    if (filterVerdict === 'real' && norm !== 'real') return false
-    if (filterVerdict === 'uncertain' && norm !== 'uncertain') return false
+    const isFake = isFakeVerdict(scan.fake_probability, scan.verdict)
+    if (filterVerdict === 'fake' && !isFake) return false
+    if (filterVerdict === 'real' && isFake) return false
 
     if (search.trim()) {
       const q = search.toLowerCase()
@@ -40,7 +40,7 @@ export default function ScanTable({ scans = [], onRefresh }) {
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto">
-          {['all', 'fake', 'real', 'uncertain'].map((type) => (
+          {['all', 'fake', 'real'].map((type) => (
             <button
               key={type}
               onClick={() => setFilterVerdict(type)}
@@ -71,7 +71,7 @@ export default function ScanTable({ scans = [], onRefresh }) {
               : 'Try adjusting the search query or verdict filters.'}
           </p>
           <Link
-            to="/"
+            to="/detect"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-text hover:bg-zinc-800 text-white text-xs font-medium transition-colors shadow-subtle focus-ring"
           >
             Inspect an image
@@ -96,7 +96,7 @@ export default function ScanTable({ scans = [], onRefresh }) {
               <tbody className="divide-y divide-border font-mono">
                 {filtered.map((scan) => {
                   const v = getVerdictData(scan.fake_probability, scan.verdict)
-                  const facesCount = scan.faces?.length || (scan.checks?.face_detected ? 1 : 0)
+                  const facesCount = scan.total_faces ?? scan.faces?.length ?? (scan.face_detected || scan.checks?.face_detected ? 1 : 0)
                   const pdfUrl = getReportPdfUrl(scan.report_id)
 
                   return (

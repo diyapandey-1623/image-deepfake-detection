@@ -36,5 +36,5 @@ training:
   results_dir: "results"
 
 inference:
-  decision_threshold: 0.50    # >= 0.50 -> FAKE, < 0.50 -> REAL
-  checkpoint_path: "models/best_model_vit"
+  decision_threshold: 0.50
+  checkpoint_path: "checkpoints/best_fusion_model.pt"

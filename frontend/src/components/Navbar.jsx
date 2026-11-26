@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Check, Search, Menu, X, ArrowUpRight } from 'lucide-react'
+import { Check, Search, Menu, X } from 'lucide-react'
 
 export default function Navbar() {
   const location = useLocation()
@@ -67,8 +67,7 @@ export default function Navbar() {
               className="inline-flex items-center gap-2.5 px-4 py-2.5 bg-white text-[#0B1A5C] font-mono text-xs font-bold uppercase border-2 border-[#0B1A5C] shadow-[3px_3px_0px_#0B1A5C] hover:bg-[#C8FF00] transition-colors btn-press focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C8FF00]"
             >
               <Search className="w-3.5 h-3.5 text-[#0B1A5C] stroke-[2.5]" />
-              <span>SEARCH / SCAN IMAGE</span>
-              <span className="bg-[#0B1A5C] text-white text-[9px] px-1.5 py-0.5 ml-1 font-mono">⌘K</span>
+              <span>SCAN IMAGE</span>
             </Link>
           </div>
 

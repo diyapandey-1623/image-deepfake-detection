@@ -13,9 +13,8 @@ significant advantage, we must evaluate against strong unimodal baselines under 
 data splits. Reporting fusion results without baselines is scientifically incomplete.
 """
 
-import os
 from pathlib import Path
-from typing import Dict, Any, Tuple
+from typing import Dict, Any
 import joblib
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
@@ -31,6 +30,8 @@ from sklearn.metrics import (
 )
 import torch
 import torch.nn as nn
+
+from src.features.blocks import make_conv_backbone
 
 
 def compute_classification_metrics(y_true: np.ndarray, y_prob: np.ndarray, threshold: float = 0.5) -> Dict[str, Any]:
@@ -127,85 +128,37 @@ class ClassicalForensicBaseline:
         return instance
 
 
-class ConvBlock(nn.Module):
-    """
-    Standard Convolutional building block trained strictly from scratch:
-    Conv2d -> BatchNorm2d -> LeakyReLU(0.1) -> MaxPool2d
-    """
-    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, pool: bool = True):
+class _UnimodalCNN(nn.Module):
+    """Shared 5-block CNN baseline for spatial RGB or 2D FFT inputs."""
+
+    def __init__(self, in_channels: int, embed_dim: int = 128, dropout: float = 0.3):
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=kernel_size // 2, bias=False)
-        self.bn = nn.BatchNorm2d(out_channels)
-        self.act = nn.LeakyReLU(0.1, inplace=True)
-        self.pool = nn.MaxPool2d(2, 2) if pool else nn.Identity()
+        self.features = make_conv_backbone(in_channels, embed_dim)
+        self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.classifier = nn.Sequential(
+            nn.Dropout(p=dropout),
+            nn.Linear(embed_dim, 64),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=dropout),
+            nn.Linear(64, 1),
+        )
+
+    def extract_embedding(self, x: torch.Tensor) -> torch.Tensor:
+        return self.global_pool(self.features(x)).flatten(1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.pool(self.act(self.bn(self.conv(x))))
+        return self.classifier(self.extract_embedding(x)).squeeze(-1)
 
 
-class SpatialOnlyCNN(nn.Module):
-    """
-    Unimodal baseline: Classifies images using spatial RGB face appearance alone.
-    Architecture: 5-block CNN from scratch with global average pooling -> binary logit.
-    Total parameters: ~450k (compact, fast training, no external weights).
-    """
+class SpatialOnlyCNN(_UnimodalCNN):
+    """Unimodal baseline classifying images from spatial RGB face appearance."""
+
     def __init__(self, in_channels: int = 3, embed_dim: int = 128, dropout: float = 0.3):
-        super().__init__()
-        self.features = nn.Sequential(
-            ConvBlock(in_channels, 32, pool=True),    # 112 -> 56
-            ConvBlock(32, 64, pool=True),             # 56 -> 28
-            ConvBlock(64, 128, pool=True),            # 28 -> 14
-            ConvBlock(128, 256, pool=True),           # 14 -> 7
-            ConvBlock(256, embed_dim, pool=False)     # 7 -> 7
-        )
-        self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.classifier = nn.Sequential(
-            nn.Dropout(p=dropout),
-            nn.Linear(embed_dim, 64),
-            nn.ReLU(inplace=True),
-            nn.Dropout(p=dropout),
-            nn.Linear(64, 1)  # Binary logit
-        )
-
-    def extract_embedding(self, x: torch.Tensor) -> torch.Tensor:
-        feat_map = self.features(x)
-        embed = self.global_pool(feat_map).flatten(1)
-        return embed
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        embed = self.extract_embedding(x)
-        return self.classifier(embed).squeeze(-1)
+        super().__init__(in_channels=in_channels, embed_dim=embed_dim, dropout=dropout)
 
 
-class FrequencyOnlyCNN(nn.Module):
-    """
-    Unimodal baseline: Classifies images using 2D Fourier power spectrum alone.
-    Architecture: 5-block CNN from scratch on 1-channel log-magnitude spectrum.
-    Total parameters: ~450k.
-    """
+class FrequencyOnlyCNN(_UnimodalCNN):
+    """Unimodal baseline classifying images from 2D Fourier power spectrum."""
+
     def __init__(self, in_channels: int = 1, embed_dim: int = 128, dropout: float = 0.3):
-        super().__init__()
-        self.features = nn.Sequential(
-            ConvBlock(in_channels, 32, pool=True),
-            ConvBlock(32, 64, pool=True),
-            ConvBlock(64, 128, pool=True),
-            ConvBlock(128, 256, pool=True),
-            ConvBlock(256, embed_dim, pool=False)
-        )
-        self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.classifier = nn.Sequential(
-            nn.Dropout(p=dropout),
-            nn.Linear(embed_dim, 64),
-            nn.ReLU(inplace=True),
-            nn.Dropout(p=dropout),
-            nn.Linear(64, 1)
-        )
-
-    def extract_embedding(self, x: torch.Tensor) -> torch.Tensor:
-        feat_map = self.features(x)
-        embed = self.global_pool(feat_map).flatten(1)
-        return embed
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        embed = self.extract_embedding(x)
-        return self.classifier(embed).squeeze(-1)
+        super().__init__(in_channels=in_channels, embed_dim=embed_dim, dropout=dropout)
